@@ -1,0 +1,9 @@
+{
+  "name": "restaurant-growth-agent",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Restaurant Growth Agent deployed on Vercel with DeepSeek via the OpenAI SDK.",
+  "dependencies": {
+    "openai": "^6.5.0"
+  }
+}
