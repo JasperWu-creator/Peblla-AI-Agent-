@@ -1,4 +1,3 @@
-// api/chat.js
 const OpenAI = require("openai");
 
 const client = new OpenAI({
@@ -12,7 +11,16 @@ module.exports = async function handler(req, res) {
   }
 
   try {
-    const { question } = req.body;
+    const {
+      question,
+      restaurantType,
+      businessGoal,
+      averageOrderValue
+    } = req.body;
+
+    const userQuery =
+      question ||
+      `Restaurant type: ${restaurantType || ""}. Goal: ${businessGoal || ""}. Average order value: ${averageOrderValue || ""}. Give relevant strategy advice.`;
 
     const pineconeRes = await fetch(
       `https://${process.env.PINECONE_INDEX_HOST}/records/namespaces/${process.env.PINECONE_NAMESPACE}/search`,
@@ -26,7 +34,7 @@ module.exports = async function handler(req, res) {
         },
         body: JSON.stringify({
           query: {
-            inputs: { text: question },
+            inputs: { text: userQuery },
             top_k: 5
           }
         })
@@ -40,15 +48,15 @@ module.exports = async function handler(req, res) {
     const pineconeData = await pineconeRes.json();
     const hits = pineconeData?.result?.hits || [];
 
-    const context = hits
-      .map((hit, i) => {
-        const fields = hit.fields || {};
-        return `[Doc ${i + 1}]
+    const context = hits.length
+      ? hits.map((hit, i) => {
+          const fields = hit.fields || {};
+          return `[Doc ${i + 1}]
 Source: ${fields.source || "unknown"}
 Title: ${fields.title || ""}
 Content: ${fields.chunk_text || ""}`;
-      })
-      .join("\n\n");
+        }).join("\n\n")
+      : "No relevant documents were found in the knowledge base.";
 
     const completion = await client.chat.completions.create({
       model: "deepseek-chat",
@@ -56,11 +64,11 @@ Content: ${fields.chunk_text || ""}`;
         {
           role: "system",
           content:
-            "You are a restaurant AI agent. Answer only from the retrieved context when possible. If the context is insufficient, say so clearly."
+            "You are a restaurant AI agent. Use retrieved context when available. If context is missing or insufficient, say so clearly and then provide a cautious general recommendation."
         },
         {
           role: "user",
-          content: `User question:\n${question}\n\nRetrieved context:\n${context}`
+          content: `User request:\n${userQuery}\n\nRetrieved context:\n${context}`
         }
       ],
       temperature: 0.3
