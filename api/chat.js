@@ -1,104 +1,77 @@
-const OpenAI = require('openai');
+// api/chat.js
+const OpenAI = require("openai");
+
+const client = new OpenAI({
+  baseURL: "https://api.deepseek.com",
+  apiKey: process.env.DEEPSEEK_API_KEY,
+});
 
 module.exports = async function handler(req, res) {
-  if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Method not allowed' });
-  }
-
-  const apiKey = process.env.DEEPSEEK_API_KEY;
-  if (!apiKey) {
-    return res.status(500).json({ error: 'Missing DEEPSEEK_API_KEY in Vercel environment variables.' });
+  if (req.method !== "POST") {
+    return res.status(405).json({ error: "Method not allowed" });
   }
 
   try {
-    const { restaurantType = '', businessGoal = '', averageOrderValue = '' } = req.body || {};
+    const { question } = req.body;
 
-    if (!restaurantType || !businessGoal || !averageOrderValue) {
-      return res.status(400).json({
-        error: 'restaurantType, businessGoal, and averageOrderValue are required.'
-      });
+    const pineconeRes = await fetch(
+      `https://${process.env.PINECONE_INDEX_HOST}/records/namespaces/${process.env.PINECONE_NAMESPACE}/search`,
+      {
+        method: "POST",
+        headers: {
+          "Api-Key": process.env.PINECONE_API_KEY,
+          "Content-Type": "application/json",
+          "Accept": "application/json",
+          "X-Pinecone-Api-Version": "2025-10"
+        },
+        body: JSON.stringify({
+          query: {
+            inputs: { text: question },
+            top_k: 5
+          }
+        })
+      }
+    );
+
+    if (!pineconeRes.ok) {
+      throw new Error(`Pinecone search failed: ${pineconeRes.status} ${await pineconeRes.text()}`);
     }
 
-    const client = new OpenAI({
-      baseURL: 'https://api.deepseek.com',
-      apiKey
-    });
+    const pineconeData = await pineconeRes.json();
+    const hits = pineconeData?.result?.hits || [];
 
-    const systemPrompt = `You are a restaurant growth strategist. Reply with valid JSON only.
-Return exactly this schema:
-{
-  "introSummary": string,
-  "promotions": [
-    {"tag": string, "tagColor": "green"|"purple"|"amber", "title": string, "desc": string, "value": string, "valueLabel": string},
-    {"tag": string, "tagColor": "green"|"purple"|"amber", "title": string, "desc": string, "value": string, "valueLabel": string},
-    {"tag": string, "tagColor": "green"|"purple"|"amber", "title": string, "desc": string, "value": string, "valueLabel": string}
-  ],
-  "metrics": {
-    "avgOrderValue": string,
-    "avgOrderValueChange": string,
-    "extraVisitsPerWeek": string,
-    "extraVisitsPerWeekChange": string,
-    "monthlyRevenueLift": string,
-    "monthlyRevenueLiftChange": string,
-    "promoROI": string,
-    "promoROIChange": string
-  },
-  "channelImpact": [
-    {"name": string, "pct": number, "color": string},
-    {"name": string, "pct": number, "color": string},
-    {"name": string, "pct": number, "color": string},
-    {"name": string, "pct": number, "color": string}
-  ],
-  "cta": {"title": string, "subtitle": string, "button": string},
-  "disclaimer": string
-}
-Rules:
-- Keep it concise and commercial.
-- Use realistic but directional estimates, not guaranteed claims.
-- Keep promotions actionable for a single-location restaurant.
-- Percentages in channelImpact should be integers between 25 and 85.
-- Use these exact tagColor values only: green, purple, amber.
-- Use hex colors for channelImpact color values.
-- Use US dollar formatting when relevant.
-- Do not include markdown fences.`;
-
-    const userPrompt = `Restaurant type: ${restaurantType}\nBusiness goal: ${businessGoal}\nAverage order value: ${averageOrderValue}\nGenerate a 30-day growth plan.`;
+    const context = hits
+      .map((hit, i) => {
+        const fields = hit.fields || {};
+        return `[Doc ${i + 1}]
+Source: ${fields.source || "unknown"}
+Title: ${fields.title || ""}
+Content: ${fields.chunk_text || ""}`;
+      })
+      .join("\n\n");
 
     const completion = await client.chat.completions.create({
-      model: 'deepseek-chat',
-      temperature: 0.6,
-      max_tokens: 1200,
-      response_format: { type: 'json_object' },
+      model: "deepseek-chat",
       messages: [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: userPrompt }
-      ]
+        {
+          role: "system",
+          content:
+            "You are a restaurant AI agent. Answer only from the retrieved context when possible. If the context is insufficient, say so clearly."
+        },
+        {
+          role: "user",
+          content: `User question:\n${question}\n\nRetrieved context:\n${context}`
+        }
+      ],
+      temperature: 0.3
     });
 
-    const content = completion?.choices?.[0]?.message?.content;
-    if (!content) {
-      return res.status(502).json({
-        error: 'DeepSeek returned an empty response.',
-        details: completion
-      });
-    }
-
-    let parsed;
-    try {
-      parsed = JSON.parse(content);
-    } catch (parseError) {
-      return res.status(502).json({
-        error: 'DeepSeek returned non-JSON output.',
-        raw: content
-      });
-    }
-
-    return res.status(200).json(parsed);
-  } catch (error) {
-    const status = error?.status || error?.response?.status || 500;
-    return res.status(status).json({
-      error: error?.message || 'Unexpected server error.',
-      details: error?.response?.data || null
+    return res.status(200).json({
+      answer: completion.choices?.[0]?.message?.content || "",
+      sources: hits.map(h => h.fields?.source).filter(Boolean)
     });
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ error: err.message || "Server error" });
   }
 };
