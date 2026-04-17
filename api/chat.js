@@ -20,9 +20,9 @@ function buildPlanFromText(answer, state) {
   return {
     introSummary: answer || "Generated a strategy, but formatting was not in strict JSON.",
     promotions: [
-      { tag: "Offer", tagColor: "green", title: "Starter promo", desc: "Run one low-friction offer for 2 weeks.", value: "+10%", valueLabel: "target conversion lift" },
-      { tag: "Bundle", tagColor: "purple", title: "Attach add-ons", desc: "Pair a high-margin add-on to core orders.", value: `+$${Math.round(parsedAov * 0.12)}`, valueLabel: "expected per-order lift" },
-      { tag: "Social", tagColor: "amber", title: "UGC reward", desc: "Offer a small perk for social check-ins.", value: "2-3x", valueLabel: "organic reach multiplier" }
+      { tag: "LOYALTY", tagColor: "green", title: "Simple Repeat-Visit Program", desc: "Offer a punch-card style reward to increase retention among regulars.", value: "8×", valueLabel: "repeat trigger cycle" },
+      { tag: "UPSELL", tagColor: "purple", title: "Premium Upgrade Prompt", desc: "Suggest one premium add-on for each order to lift basket size.", value: `+$${Math.round(parsedAov * 0.12)}`, valueLabel: "per order opportunity" },
+      { tag: "SOCIAL", tagColor: "amber", title: "Instagram Check-In Offer", desc: "Give customers a low-cost freebie when they tag your restaurant online.", value: "3.2×", valueLabel: "organic reach ROI" }
     ],
     metrics: {
       avgOrderValue: `$${Math.round(parsedAov * 1.1)}`,
@@ -41,9 +41,9 @@ function buildPlanFromText(answer, state) {
       { name: "Timed promotions", pct: 39, color: "#c8f56a" }
     ],
     cta: {
-      title: "Ready to launch this test?",
-      subtitle: "Track weekly AOV, repeat rate, and promo redemption.",
-      button: "Start test →"
+      title: "Ready to test these promotions?",
+      subtitle: "Start with one offer this week, then compare visits, AOV, and repeat rate.",
+      button: "Launch my plan →"
     },
     disclaimer: "This is a generated estimate; validate with your real data."
   };
