@@ -365,14 +365,81 @@
 
   .promo-card h3 { font-size: 16px; font-weight: 600; color: var(--text); margin-bottom: 6px; }
   .promo-card p { font-size: 13px; color: var(--muted); line-height: 1.55; }
-  .promo-num {
-    font-family: var(--font-display);
-    font-size: 28px;
-    color: var(--accent);
-    margin-top: 14px;
-    line-height: 1;
+  .promo-support-line {
+    font-size: 13px;
+    color: var(--muted);
+    margin-top: 12px;
   }
-  .promo-num-label { font-size: 11px; color: var(--muted); margin-top: 2px; text-transform: uppercase; letter-spacing: 0.06em; }
+
+  /* Contact section */
+  .contact-section {
+    background: var(--surface);
+    box-shadow: var(--shadow-soft);
+    border: 1px solid var(--border2);
+    border-radius: var(--radius);
+    padding: 22px;
+    animation: fadeUp 0.5s ease both;
+  }
+  .contact-section h3 {
+    font-family: var(--font-display);
+    font-size: 20px;
+    font-weight: 600;
+    margin-bottom: 6px;
+    letter-spacing: -0.01em;
+  }
+  .contact-section p {
+    font-size: 13px;
+    color: var(--muted);
+    margin-bottom: 16px;
+  }
+  .contact-form-grid {
+    display: grid;
+    gap: 12px;
+    grid-template-columns: 1fr;
+  }
+  @media (min-width: 720px) {
+    .contact-form-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+  .contact-field {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .contact-field.full-width {
+    grid-column: 1 / -1;
+  }
+  .contact-field label {
+    font-size: 12px;
+    font-weight: 500;
+    color: #4d5363;
+  }
+  .contact-field input,
+  .contact-field textarea {
+    width: 100%;
+    border: 1px solid var(--border2);
+    border-radius: var(--radius-sm);
+    background: #fff;
+    color: var(--text);
+    font-size: 14px;
+    padding: 10px 12px;
+    font-family: var(--font-body);
+    transition: border-color 0.2s, box-shadow 0.2s;
+    outline: none;
+  }
+  .contact-field textarea {
+    min-height: 96px;
+    resize: vertical;
+  }
+  .contact-field input:focus,
+  .contact-field textarea:focus {
+    border-color: var(--accent-border);
+    box-shadow: 0 0 0 3px var(--accent-dim);
+  }
+  .contact-actions {
+    margin-top: 14px;
+  }
 
   /* Impact metrics */
   .metrics-grid {
@@ -726,13 +793,17 @@ function renderResults(plan) {
   resultsEl.style.flexDirection = 'column';
   resultsEl.style.gap = '26px';
 
+  const promoReasons = [
+    'This helps fill slower periods and creates a stronger reason for customers to visit now.',
+    'This lifts average check size by guiding customers toward add-ons with healthy margins.',
+    'This expands awareness through customer sharing and turns each visit into low-cost marketing.'
+  ];
+
   const promosHtml = (plan.promotions || []).map((p, idx) => `
     <div class="promo-card" style="animation-delay:${0.05 + idx * 0.07}s;">
       <span class="ptag ${escapeHTML(p.tagColor || 'green')}">${escapeHTML(p.tag || 'Promo')}</span>
       <h3>${escapeHTML(p.title || '')}</h3>
-      <p>${escapeHTML(p.desc || '')}</p>
-      <div class="promo-num">${escapeHTML(p.value || '')}</div>
-      <div class="promo-num-label">${escapeHTML(p.valueLabel || '')}</div>
+      <p>${escapeHTML(promoReasons[idx] || 'This promotion supports steady revenue growth with clear customer value.')}</p>
     </div>
   `).join('');
 
@@ -748,6 +819,7 @@ function renderResults(plan) {
     <div>
       <div class="section-title">Your <em>3 promotions</em></div>
       <div class="promo-grid">${promosHtml}</div>
+      <p class="promo-support-line">Peblla can provide you with a customized marketing solution.</p>
     </div>
 
     <div>
@@ -787,6 +859,38 @@ function renderResults(plan) {
         <p>${escapeHTML(plan.cta?.subtitle || '')}</p>
       </div>
       <button class="cta-btn" onclick="alert('Next step: connect your POS or analytics stack.')">${escapeHTML(plan.cta?.button || 'Start →')}</button>
+    </div>
+
+    <div class="contact-section">
+      <h3>Interested in a customized Peblla solution?</h3>
+      <p>Leave your contact information and our team will reach out to you.</p>
+      <form onsubmit="event.preventDefault(); alert('Thanks — our team will contact you soon.');">
+        <div class="contact-form-grid">
+          <div class="contact-field">
+            <label for="contact-full-name">Full Name</label>
+            <input id="contact-full-name" name="fullName" type="text" placeholder="e.g., Jordan Lee" required />
+          </div>
+          <div class="contact-field">
+            <label for="contact-phone">Phone Number</label>
+            <input id="contact-phone" name="phoneNumber" type="tel" placeholder="e.g., (555) 123-4567" required />
+          </div>
+          <div class="contact-field">
+            <label for="contact-restaurant-type">Restaurant Type</label>
+            <input id="contact-restaurant-type" name="restaurantType" type="text" placeholder="e.g., Casual Dining" required />
+          </div>
+          <div class="contact-field">
+            <label for="contact-restaurant-name">Restaurant Name</label>
+            <input id="contact-restaurant-name" name="restaurantName" type="text" placeholder="e.g., Maple Street Kitchen" required />
+          </div>
+          <div class="contact-field full-width">
+            <label for="contact-notes">Optional Notes</label>
+            <textarea id="contact-notes" name="notes" placeholder="Share any goals, timeline, or questions."></textarea>
+          </div>
+        </div>
+        <div class="contact-actions">
+          <button class="cta-btn" type="submit">Submit</button>
+        </div>
+      </form>
     </div>
 
     <p class="disclaimer">* ${escapeHTML(plan.disclaimer || 'Estimates may vary by location, menu, and execution quality.')}</p>
