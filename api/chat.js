@@ -1,4 +1,9 @@
 const OpenAI = require("openai");
+const { performance } = require("node:perf_hooks");
+
+const SERVER_BOOT_AT = Date.now();
+let requestCounter = 0;
+let deepseekClient;
 
 function serverLog(stage, details) {
   console.log(`[api/chat] ${stage}`, details || "");
@@ -6,6 +11,14 @@ function serverLog(stage, details) {
 
 function serverWarn(stage, details) {
   console.warn(`[api/chat] ${stage}`, details || "");
+}
+
+function nowMs() {
+  return performance.now();
+}
+
+function elapsedMs(startMs) {
+  return Number((nowMs() - startMs).toFixed(2));
 }
 
 function extractJSON(text) {
@@ -62,6 +75,7 @@ async function pineconeSearch(userQuery, env) {
   const namespace = env.PINECONE_NAMESPACE || "default";
   const pineconeUrl = `https://${env.PINECONE_INDEX_HOST}/records/namespaces/${namespace}/search`;
   serverLog("pinecone.request.start", { pineconeUrl, namespace });
+  const pineconeStartedAt = nowMs();
 
   try {
     const response = await fetch(pineconeUrl, {
@@ -77,14 +91,16 @@ async function pineconeSearch(userQuery, env) {
           inputs: { text: userQuery },
           top_k: 5
         }
-      })
+      }),
+      signal: AbortSignal.timeout(3500)
     });
 
     if (!response.ok) {
       const errText = await response.text();
       serverWarn("pinecone.request.non_200", {
         status: response.status,
-        body: errText.slice(0, 500)
+        body: errText.slice(0, 500),
+        durationMs: elapsedMs(pineconeStartedAt)
       });
       return { context: "No retrieved context; Pinecone request failed.", hits: [] };
     }
@@ -93,25 +109,55 @@ async function pineconeSearch(userQuery, env) {
     const hits = data?.result?.hits || [];
     const context = hits.length
       ? hits
+          .slice(0, 3)
           .map((hit, i) => {
             const fields = hit.fields || {};
+            const chunk = (fields.chunk_text || "").slice(0, 500);
             return `[Doc ${i + 1}]
 Source: ${fields.source || "unknown"}
 Title: ${fields.title || ""}
-Content: ${fields.chunk_text || ""}`;
+Content: ${chunk}`;
           })
           .join("\n\n")
       : "No relevant documents were found in the knowledge base.";
 
-    serverLog("pinecone.request.success", { hitCount: hits.length });
+    serverLog("pinecone.request.success", { hitCount: hits.length, durationMs: elapsedMs(pineconeStartedAt) });
     return { context, hits };
   } catch (error) {
-    serverWarn("pinecone.request.error", error?.message || String(error));
+    serverWarn("pinecone.request.error", { message: error?.message || String(error), durationMs: elapsedMs(pineconeStartedAt) });
     return { context: "No retrieved context; Pinecone request errored.", hits: [] };
   }
 }
 
+function getDeepseekClient(env) {
+  const baseURL = env.DEEPSEEK_BASE_URL || "https://api.deepseek.com";
+  if (!deepseekClient || deepseekClient.__baseURL !== baseURL || deepseekClient.__key !== env.DEEPSEEK_API_KEY) {
+    const client = new OpenAI({
+      baseURL,
+      apiKey: env.DEEPSEEK_API_KEY,
+      maxRetries: 0,
+      timeout: 25000
+    });
+    client.__baseURL = baseURL;
+    client.__key = env.DEEPSEEK_API_KEY;
+    deepseekClient = client;
+  }
+  return deepseekClient;
+}
+
 module.exports = async function handler(req, res) {
+  const requestStartedAt = nowMs();
+  const requestId = `r${Date.now()}-${++requestCounter}`;
+  const isColdStart = requestCounter === 1;
+  console.time(`[api/chat][${requestId}] total`);
+  console.time(`[api/chat][${requestId}] request_received_to_response`);
+  serverLog("request.received.start", {
+    requestId,
+    method: req.method,
+    isColdStart,
+    uptimeMs: Date.now() - SERVER_BOOT_AT
+  });
+
   const env = {
     DEEPSEEK_API_KEY: process.env.DEEPSEEK_API_KEY,
     DEEPSEEK_BASE_URL: process.env.DEEPSEEK_BASE_URL || process.env.DEEPSEEK_API_BASE_URL || process.env.BASE_URL || process.env.base_url,
@@ -122,11 +168,15 @@ module.exports = async function handler(req, res) {
   };
 
   if (req.method !== "POST") {
+    console.timeEnd(`[api/chat][${requestId}] request_received_to_response`);
+    console.timeEnd(`[api/chat][${requestId}] total`);
     return res.status(405).json({ error: "Method not allowed", debug: { expectedMethod: "POST" } });
   }
 
   if (!env.DEEPSEEK_API_KEY) {
     serverWarn("request.blocked.missing_deepseek_key");
+    console.timeEnd(`[api/chat][${requestId}] request_received_to_response`);
+    console.timeEnd(`[api/chat][${requestId}] total`);
     return res.status(500).json({
       error: "Missing DeepSeek API key on server.",
       debug: { expectedEnvVar: "DEEPSEEK_API_KEY", keyPresent: false }
@@ -134,7 +184,7 @@ module.exports = async function handler(req, res) {
   }
 
   const deepseekBaseUrl = env.DEEPSEEK_BASE_URL || "https://api.deepseek.com";
-  const client = new OpenAI({ baseURL: deepseekBaseUrl, apiKey: env.DEEPSEEK_API_KEY });
+  const client = getDeepseekClient(env);
 
   try {
     const { question, restaurantType, businessGoal, averageOrderValue } = req.body || {};
@@ -145,6 +195,8 @@ module.exports = async function handler(req, res) {
       hasQuestion: Boolean(question)
     });
 
+    console.time(`[api/chat][${requestId}] prompt_build`);
+    const promptBuildStartedAt = nowMs();
     const userQuery =
       question ||
       `Restaurant type: ${restaurantType || ""}. Goal: ${businessGoal || ""}. Average order value: ${averageOrderValue || ""}. Give relevant strategy advice.`;
@@ -166,15 +218,35 @@ channelImpact[{name,pct,color}]
 cta{title,subtitle,button}`
       }
     ];
+    const estimatedPromptChars = messages.reduce((acc, msg) => acc + String(msg.content || "").length, 0);
+    console.timeEnd(`[api/chat][${requestId}] prompt_build`);
+    serverLog("prompt.build.complete", {
+      requestId,
+      durationMs: elapsedMs(promptBuildStartedAt),
+      estimatedPromptChars,
+      retrievedHitCount: hits.length
+    });
 
-    serverLog("deepseek.request.start", { model: env.DEEPSEEK_MODEL, deepseekBaseUrl, messageCount: messages.length });
+    console.time(`[api/chat][${requestId}] deepseek_fetch`);
+    const deepseekStartedAt = nowMs();
+    serverLog("deepseek.request.start", { requestId, model: env.DEEPSEEK_MODEL, deepseekBaseUrl, messageCount: messages.length });
     const completion = await client.chat.completions.create({
       model: env.DEEPSEEK_MODEL,
       messages,
-      temperature: 0.3
+      temperature: 0.3,
+      max_tokens: 550
     });
-    serverLog("deepseek.request.success");
+    console.timeEnd(`[api/chat][${requestId}] deepseek_fetch`);
+    serverLog("deepseek.request.success", {
+      requestId,
+      durationMs: elapsedMs(deepseekStartedAt),
+      finishReason: completion?.choices?.[0]?.finish_reason || null,
+      completionTokens: completion?.usage?.completion_tokens || null,
+      promptTokens: completion?.usage?.prompt_tokens || null
+    });
 
+    console.time(`[api/chat][${requestId}] response_parse`);
+    const parseStartedAt = nowMs();
     const rawContent = completion.choices?.[0]?.message?.content || "";
     let plan;
     let parseWarning = null;
@@ -186,15 +258,34 @@ cta{title,subtitle,button}`
       serverWarn("deepseek.response.parse_failed", parseWarning);
       plan = buildPlanFromText(rawContent, { averageOrderValue });
     }
+    console.timeEnd(`[api/chat][${requestId}] response_parse`);
+    serverLog("response.parse.complete", {
+      requestId,
+      durationMs: elapsedMs(parseStartedAt),
+      parseWarning: Boolean(parseWarning),
+      responseChars: rawContent.length
+    });
 
-    return res.status(200).json({
+    console.time(`[api/chat][${requestId}] response_send`);
+    const responsePayload = {
       ...plan,
       debug: {
         parseWarning,
         sourceCount: hits.length,
-        model: env.DEEPSEEK_MODEL
+        model: env.DEEPSEEK_MODEL,
+        timings: {
+          totalMs: elapsedMs(requestStartedAt),
+          isColdStart
+        }
       }
-    });
+    };
+
+    const statusResponse = res.status(200).json(responsePayload);
+    console.timeEnd(`[api/chat][${requestId}] response_send`);
+    console.timeEnd(`[api/chat][${requestId}] request_received_to_response`);
+    console.timeEnd(`[api/chat][${requestId}] total`);
+    serverLog("request.complete", { requestId, totalMs: elapsedMs(requestStartedAt), isColdStart });
+    return statusResponse;
   } catch (err) {
     const details = {
       message: err?.message || "Server error",
@@ -203,7 +294,7 @@ cta{title,subtitle,button}`
       type: err?.type
     };
     serverWarn("request.failed", details);
-    return res.status(502).json({
+    const failureResponse = res.status(502).json({
       error: details.message,
       debug: {
         ...details,
@@ -217,5 +308,9 @@ cta{title,subtitle,button}`
         ]
       }
     });
+    console.timeEnd(`[api/chat][${requestId}] request_received_to_response`);
+    console.timeEnd(`[api/chat][${requestId}] total`);
+    serverLog("request.failed.complete", { requestId, totalMs: elapsedMs(requestStartedAt), isColdStart });
+    return failureResponse;
   }
 };
