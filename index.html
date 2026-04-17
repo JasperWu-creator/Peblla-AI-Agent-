@@ -75,6 +75,22 @@
     font-weight: 500;
   }
 
+  .nav-right {
+    justify-content: flex-end;
+    text-align: right;
+    flex: 1;
+  }
+
+  .nav-meta {
+    color: #8a90a0;
+    font-size: 12px;
+    font-weight: 500;
+    letter-spacing: 0.01em;
+    white-space: nowrap;
+    cursor: default;
+    text-decoration: none;
+  }
+
   .logo-mark {
     width: 18px;
     height: 18px;
@@ -219,6 +235,12 @@
     font-weight: 600;
     color: #2a2e39;
     padding-top: 4px;
+    margin-bottom: 0;
+  }
+
+  .bubble.ai.interactive.layout-stacked {
+    grid-template-columns: 1fr;
+    row-gap: 12px;
   }
   .bubble.user {
     background: var(--user-bubble);
@@ -229,6 +251,10 @@
   }
 
   .opts { display: flex; flex-wrap: wrap; gap: 8px; }
+  .bubble.ai.interactive.layout-stacked .opts {
+    gap: 10px;
+    align-items: center;
+  }
   .opt {
     padding: 8px 12px;
     border-radius: 999px;
@@ -474,7 +500,7 @@
       <div class="crumbs">Report <span>/</span> Growth Advisor</div>
     </div>
     <div class="nav-right">
-      <span>New_York</span><span>Store Name</span><span>Support</span><span>John Doe</span>
+      <span class="nav-meta">Columbia University · Student Project · Test Version</span>
     </div>
   </div>
 
@@ -569,7 +595,7 @@ function removeTyping() {
 
 const questions = [
   { text: 'What type of restaurant do you run?', opts: ['Fine dining', 'Casual dining', 'Fast casual', 'Cafe / bakery', 'Bar & grill', 'Food truck'] },
-  { text: 'What is your primary business goal?', opts: ['Increase foot traffic', 'Increase order volume', 'Increase revenue per visit'] },
+  { text: 'What is your primary business goal?', opts: ['Increase foot traffic', 'Increase order volume', 'Increase revenue per visit', 'Increase weekly marketing spend'] },
   { text: 'What is your average order value?', input: true, placeholder: 'e.g. $28' }
 ];
 
@@ -629,7 +655,8 @@ function ask(qIndex, d) {
       frag.appendChild(inRow);
     }
 
-    addRow('ai', frag, 0);
+    const bubble = addRow('ai', frag, 0);
+    if (qIndex === 0) bubble.classList.add('layout-stacked');
   }, d || 700);
 }
 
