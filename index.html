@@ -210,15 +210,14 @@
     color: var(--text);
   }
   .bubble.ai.interactive {
-    display: grid;
-    grid-template-columns: minmax(220px, 0.9fr) minmax(320px, 1.1fr);
-    column-gap: 14px;
-    align-items: start;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
   }
   .bubble.ai.interactive > p {
     font-weight: 600;
     color: #2a2e39;
-    padding-top: 4px;
   }
   .bubble.user {
     background: var(--user-bubble);
@@ -487,10 +486,6 @@
       <h1>Grow your<br><em>restaurant</em></h1>
       <p class="header-sub">Answer 3 questions. Get a personalized promotion strategy in seconds.</p>
     </div>
-    <div class="header-stat">
-      <div class="stat-num">3×</div>
-      <div class="stat-label">avg revenue uplift<br>with active promos</div>
-    </div>
   </header>
 
   <!-- CHAT -->
@@ -569,7 +564,7 @@ function removeTyping() {
 
 const questions = [
   { text: 'What type of restaurant do you run?', opts: ['Fine dining', 'Casual dining', 'Fast casual', 'Cafe / bakery', 'Bar & grill', 'Food truck'] },
-  { text: 'What is your primary business goal?', opts: ['Increase foot traffic', 'Increase order volume', 'Increase revenue per visit'] },
+  { text: 'What is your primary business goal?', opts: ['Increase foot traffic', 'Increase weekly profit', 'Increase revenue per visit'] },
   { text: 'What is your average order value?', input: true, placeholder: 'e.g. $28' }
 ];
 
