@@ -10,24 +10,24 @@
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
   :root {
-    --bg: #0d0f0e;
-    --surface: #161918;
-    --surface2: #1e2220;
-    --border: rgba(255,255,255,0.07);
-    --border2: rgba(255,255,255,0.13);
-    --text: #f0ede8;
-    --muted: #8a9190;
-    --accent: #c8f56a;
-    --accent-dim: rgba(200,245,106,0.12);
-    --accent-border: rgba(200,245,106,0.3);
-    --purple: #b8a4f8;
-    --purple-dim: rgba(184,164,248,0.1);
-    --teal: #5de8c4;
-    --teal-dim: rgba(93,232,196,0.1);
-    --amber: #f5c26b;
-    --amber-dim: rgba(245,194,107,0.1);
-    --ai-bubble: #1a1d1c;
-    --user-bubble: rgba(200,245,106,0.08);
+    --bg: #ffffff;
+    --surface: #ffffff;
+    --surface2: #fff7f4;
+    --border: #f0d8cf;
+    --border2: #e7c9be;
+    --text: #a3280a;
+    --muted: #b56f5f;
+    --accent: #ff4d1f;
+    --accent-dim: rgba(255, 77, 31, 0.10);
+    --accent-border: rgba(255, 77, 31, 0.35);
+    --purple: #d24b2a;
+    --purple-dim: rgba(210, 75, 42, 0.10);
+    --teal: #c53d20;
+    --teal-dim: rgba(197, 61, 32, 0.10);
+    --amber: #ff6a2a;
+    --amber-dim: rgba(255, 106, 42, 0.10);
+    --ai-bubble: #fff8f5;
+    --user-bubble: rgba(255, 77, 31, 0.08);
     --font-display: 'DM Serif Display', Georgia, serif;
     --font-body: 'DM Sans', system-ui, sans-serif;
     --radius: 14px;
@@ -50,10 +50,10 @@
     content: '';
     position: fixed;
     inset: 0;
-    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.035'/%3E%3C/svg%3E");
+    background: linear-gradient(180deg, #ffffff 0%, #fff7f4 100%);
     pointer-events: none;
     z-index: 0;
-    opacity: 0.6;
+    opacity: 1;
   }
 
   .page {
@@ -70,7 +70,7 @@
     display: flex;
     align-items: flex-end;
     justify-content: space-between;
-    border-bottom: 0.5px solid var(--border);
+    border-bottom: 1px solid var(--border);
     margin-bottom: 36px;
     animation: fadeUp 0.6s ease both;
   }
@@ -154,7 +154,7 @@
   }
   .avatar.ai {
     background: var(--surface2);
-    border: 0.5px solid var(--border2);
+    border: 1px solid var(--border2);
     color: var(--accent);
     font-size: 15px;
   }
@@ -173,14 +173,14 @@
   }
   .bubble.ai {
     background: var(--ai-bubble);
-    border: 0.5px solid var(--border2);
+    border: 1px solid var(--border2);
     color: var(--text);
     border-radius: 4px var(--radius) var(--radius) var(--radius);
   }
   .bubble.user {
     background: var(--user-bubble);
-    border: 0.5px solid var(--accent-border);
-    color: var(--accent);
+    border: 1px solid var(--accent-border);
+    color: var(--text);
     font-weight: 500;
     border-radius: var(--radius) 4px var(--radius) var(--radius);
   }
@@ -190,7 +190,7 @@
   .opt {
     padding: 7px 16px;
     border-radius: 22px;
-    border: 0.5px solid var(--border2);
+    border: 1px solid var(--border2);
     background: transparent;
     color: var(--muted);
     font-size: 13px;
@@ -207,7 +207,7 @@
   .inp-row input {
     flex: 1;
     background: var(--surface2);
-    border: 0.5px solid var(--border2);
+    border: 1px solid var(--border2);
     border-radius: var(--radius-sm);
     color: var(--text);
     font-family: var(--font-body);
@@ -223,7 +223,7 @@
     background: var(--accent);
     border: none;
     border-radius: var(--radius-sm);
-    color: #0d0f0e;
+    color: #ffffff;
     font-family: var(--font-body);
     font-size: 13px;
     font-weight: 500;
@@ -282,7 +282,7 @@
   }
   .promo-card {
     background: var(--surface);
-    border: 0.5px solid var(--border2);
+    border: 1px solid var(--border2);
     border-radius: var(--radius);
     padding: 20px;
     transition: border-color 0.2s, transform 0.2s;
@@ -328,7 +328,7 @@
 
   .metric {
     background: var(--surface);
-    border: 0.5px solid var(--border2);
+    border: 1px solid var(--border2);
     border-radius: var(--radius);
     padding: 18px 16px;
     animation: fadeUp 0.5s ease both;
@@ -354,7 +354,7 @@
   /* Bar chart */
   .bar-card {
     background: var(--surface);
-    border: 0.5px solid var(--border2);
+    border: 1px solid var(--border2);
     border-radius: var(--radius);
     padding: 24px;
     animation: fadeUp 0.5s 0.1s ease both;
@@ -368,7 +368,7 @@
 
   /* CTA */
   .cta-card {
-    background: linear-gradient(135deg, rgba(200,245,106,0.06) 0%, rgba(93,232,196,0.04) 100%);
+    background: linear-gradient(135deg, rgba(255,77,31,0.08) 0%, rgba(255,184,153,0.18) 100%);
     border: 0.5px solid var(--accent-border);
     border-radius: var(--radius);
     padding: 28px 28px;
@@ -386,7 +386,7 @@
     background: var(--accent);
     border: none;
     border-radius: var(--radius-sm);
-    color: #0d0f0e;
+    color: #ffffff;
     font-family: var(--font-body);
     font-size: 14px;
     font-weight: 500;
