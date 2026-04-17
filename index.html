@@ -506,6 +506,9 @@
 <script>
 const chat = document.getElementById('chat');
 const state = { step: 0, type: '', goal: '', aov: '' };
+let activeRequestId = 0;
+let isPlanRequestInFlight = false;
+let latestRequestDebug = null;
 
 function escapeHTML(value) {
   return String(value)
@@ -673,49 +676,73 @@ function localFallbackPlan() {
 }
 
 async function getPlanFromAPI() {
+  if (isPlanRequestInFlight) {
+    console.warn('[frontend] api.request.duplicate_blocked', { reason: 'request_in_flight' });
+    throw new Error('A request is already in progress. Duplicate submit was blocked.');
+  }
+
+  const requestId = ++activeRequestId;
+  const timerKey = `[frontend][request:${requestId}] total`;
   const payload = {
     restaurantType: state.type,
     businessGoal: state.goal,
     averageOrderValue: state.aov
   };
 
+  isPlanRequestInFlight = true;
+  console.time(timerKey);
+  console.time(`[frontend][request:${requestId}] fetch`);
   console.info('[frontend] api.request.start', {
+    requestId,
     url: '/api/chat',
     method: 'POST',
     payload
   });
 
-  const res = await fetch('/api/chat', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload)
-  });
-
-  console.info('[frontend] api.response.received', { status: res.status, ok: res.ok });
-
-  if (!res.ok) {
-    const text = await res.text();
-    console.error('[frontend] api.response.non_200', { status: res.status, body: text });
-    let parsed;
-    try {
-      parsed = JSON.parse(text);
-    } catch (_) {
-      parsed = null;
-    }
-    const errMsg = parsed?.error || text || 'Request failed';
-    const debug = parsed?.debug ? ` | debug: ${JSON.stringify(parsed.debug)}` : '';
-    throw new Error(`${errMsg}${debug}`);
-  }
-
   try {
-    return await res.json();
-  } catch (parseError) {
-    console.error('[frontend] api.response.parse_failed', parseError);
-    throw new Error(`Could not parse API JSON response: ${parseError.message || parseError}`);
+    const res = await fetch('/api/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    console.timeEnd(`[frontend][request:${requestId}] fetch`);
+
+    console.info('[frontend] api.response.received', { requestId, status: res.status, ok: res.ok });
+
+    if (!res.ok) {
+      const text = await res.text();
+      console.error('[frontend] api.response.non_200', { requestId, status: res.status, body: text });
+      let parsed;
+      try {
+        parsed = JSON.parse(text);
+      } catch (_) {
+        parsed = null;
+      }
+      const errMsg = parsed?.error || text || 'Request failed';
+      const debug = parsed?.debug ? ` | debug: ${JSON.stringify(parsed.debug)}` : '';
+      throw new Error(`${errMsg}${debug}`);
+    }
+
+    console.time(`[frontend][request:${requestId}] parse_json`);
+    try {
+      const parsed = await res.json();
+      console.timeEnd(`[frontend][request:${requestId}] parse_json`);
+      latestRequestDebug = parsed?.debug || null;
+      return parsed;
+    } catch (parseError) {
+      console.timeEnd(`[frontend][request:${requestId}] parse_json`);
+      console.error('[frontend] api.response.parse_failed', { requestId, error: parseError });
+      throw new Error(`Could not parse API JSON response: ${parseError.message || parseError}`);
+    }
+  } finally {
+    console.timeEnd(timerKey);
+    isPlanRequestInFlight = false;
   }
 }
 
 function renderResults(plan) {
+  const renderTimerKey = `[frontend][request:${activeRequestId}] render_complete`;
+  console.time(renderTimerKey);
   const divider = document.getElementById('divider');
   divider.style.display = 'flex';
   divider.style.animationDelay = '0ms';
@@ -797,11 +824,23 @@ function renderResults(plan) {
       el.style.width = el.dataset.w + '%';
     });
     resultsEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    console.timeEnd(renderTimerKey);
+    console.info('[frontend] render.completed', {
+      requestId: activeRequestId,
+      backendDebug: latestRequestDebug
+    });
   }, 200);
 }
 
 async function showResults() {
+  if (isPlanRequestInFlight) {
+    console.warn('[frontend] showResults.skipped_duplicate');
+    return;
+  }
+
   addTyping();
+  console.info('[frontend] request.start_to_render.start', { requestId: activeRequestId + 1 });
+  console.time('[frontend] request_start_to_first_render_call');
 
   try {
     const plan = await getPlanFromAPI();
@@ -810,12 +849,18 @@ async function showResults() {
     }
     removeTyping();
     addRow('ai', `Perfect. I used your answers to generate a tailored strategy for a <strong>${escapeHTML(state.type)}</strong> focused on <strong>${escapeHTML(state.goal.toLowerCase())}</strong> with an AOV of <strong>${escapeHTML(state.aov)}</strong>.`, 0);
-    setTimeout(() => renderResults(plan), 700);
+    setTimeout(() => {
+      renderResults(plan);
+      console.timeEnd('[frontend] request_start_to_first_render_call');
+    }, 700);
   } catch (error) {
     removeTyping();
     console.error('[frontend] api.request.failed', error);
     addRow('ai', `I could not complete the live API request. Debug details: <code>${escapeHTML(error.message || String(error))}</code>. I generated a local fallback plan below so you can keep testing the UI while API issues are fixed.`, 0);
-    setTimeout(() => renderResults(localFallbackPlan()), 700);
+    setTimeout(() => {
+      renderResults(localFallbackPlan());
+      console.timeEnd('[frontend] request_start_to_first_render_call');
+    }, 700);
   }
 }
 
