@@ -673,22 +673,46 @@ function localFallbackPlan() {
 }
 
 async function getPlanFromAPI() {
+  const payload = {
+    restaurantType: state.type,
+    businessGoal: state.goal,
+    averageOrderValue: state.aov
+  };
+
+  console.info('[frontend] api.request.start', {
+    url: '/api/chat',
+    method: 'POST',
+    payload
+  });
+
   const res = await fetch('/api/chat', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      restaurantType: state.type,
-      businessGoal: state.goal,
-      averageOrderValue: state.aov
-    })
+    body: JSON.stringify(payload)
   });
+
+  console.info('[frontend] api.response.received', { status: res.status, ok: res.ok });
 
   if (!res.ok) {
     const text = await res.text();
-    throw new Error(text || 'Request failed');
+    console.error('[frontend] api.response.non_200', { status: res.status, body: text });
+    let parsed;
+    try {
+      parsed = JSON.parse(text);
+    } catch (_) {
+      parsed = null;
+    }
+    const errMsg = parsed?.error || text || 'Request failed';
+    const debug = parsed?.debug ? ` | debug: ${JSON.stringify(parsed.debug)}` : '';
+    throw new Error(`${errMsg}${debug}`);
   }
 
-  return res.json();
+  try {
+    return await res.json();
+  } catch (parseError) {
+    console.error('[frontend] api.response.parse_failed', parseError);
+    throw new Error(`Could not parse API JSON response: ${parseError.message || parseError}`);
+  }
 }
 
 function renderResults(plan) {
@@ -781,14 +805,17 @@ async function showResults() {
 
   try {
     const plan = await getPlanFromAPI();
+    if (plan?.debug?.parseWarning) {
+      console.warn('[frontend] api.plan.parse_warning', plan.debug.parseWarning);
+    }
     removeTyping();
     addRow('ai', `Perfect. I used your answers to generate a tailored strategy for a <strong>${escapeHTML(state.type)}</strong> focused on <strong>${escapeHTML(state.goal.toLowerCase())}</strong> with an AOV of <strong>${escapeHTML(state.aov)}</strong>.`, 0);
     setTimeout(() => renderResults(plan), 700);
   } catch (error) {
     removeTyping();
-    addRow('ai', 'I could not reach the live AI model, so I generated a fallback strategy locally. Once your DeepSeek API key is connected in Vercel, this section will become fully dynamic.', 0);
+    console.error('[frontend] api.request.failed', error);
+    addRow('ai', `I could not complete the live API request. Debug details: <code>${escapeHTML(error.message || String(error))}</code>. I generated a local fallback plan below so you can keep testing the UI while API issues are fixed.`, 0);
     setTimeout(() => renderResults(localFallbackPlan()), 700);
-    console.error(error);
   }
 }
 
