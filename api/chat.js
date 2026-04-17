@@ -10,9 +10,29 @@ function serverWarn(stage, details) {
 
 function extractJSON(text) {
   if (!text) return null;
-  const fenced = text.match(/```json\s*([\s\S]*?)\s*```/i);
-  const raw = fenced ? fenced[1] : text;
-  return JSON.parse(raw);
+  const raw = String(text).trim();
+  const fenced = raw.match(/^```(?:json)?\s*([\s\S]*?)\s*```$/i);
+  const withoutFence = fenced ? fenced[1].trim() : raw.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/i, "").trim();
+  try {
+    return JSON.parse(withoutFence);
+  } catch (parseError) {
+    const firstBrace = withoutFence.indexOf("{");
+    const lastBrace = withoutFence.lastIndexOf("}");
+    if (firstBrace >= 0 && lastBrace > firstBrace) {
+      return JSON.parse(withoutFence.slice(firstBrace, lastBrace + 1));
+    }
+    throw parseError;
+  }
+}
+
+function normalizeHostUrl(host) {
+  if (!host) return null;
+  const trimmedHost = String(host).trim();
+  if (!trimmedHost) return null;
+  if (/^https?:\/\//i.test(trimmedHost)) {
+    return trimmedHost.replace(/\/+$/, "");
+  }
+  return `https://${trimmedHost.replace(/\/+$/, "")}`;
 }
 
 function buildPlanFromText(answer, state) {
@@ -60,7 +80,8 @@ async function pineconeSearch(userQuery, env) {
   }
 
   const namespace = env.PINECONE_NAMESPACE || "default";
-  const pineconeUrl = `https://${env.PINECONE_INDEX_HOST}/records/namespaces/${namespace}/search`;
+  const pineconeHost = normalizeHostUrl(env.PINECONE_INDEX_HOST);
+  const pineconeUrl = `${pineconeHost}/records/namespaces/${encodeURIComponent(namespace)}/search`;
   serverLog("pinecone.request.start", { pineconeUrl, namespace });
 
   try {
@@ -154,11 +175,13 @@ module.exports = async function handler(req, res) {
       {
         role: "system",
         content:
-          "You are a restaurant AI agent. Reply with valid JSON only. Required keys: introSummary, promotions[3], metrics, channelImpact[4], cta, disclaimer."
+          "You are a restaurant AI agent. Return one minified JSON object only. No markdown, no code fences, no extra text."
       },
       {
         role: "user",
-        content: `Return valid JSON for this request.
+        content: `Output strict JSON only using this exact schema and limits:
+{"introSummary":"<=160 chars","promotions":[{"tag":"UPPERCASE<=10","tagColor":"green|purple|amber","title":"<=60","desc":"<=120","value":"<=16","valueLabel":"<=24"}],"metrics":{"avgOrderValue":"<=12","avgOrderValueChange":"<=20","extraVisitsPerWeek":"<=8","extraVisitsPerWeekChange":"<=20","monthlyRevenueLift":"<=16","monthlyRevenueLiftChange":"<=20","promoROI":"<=10","promoROIChange":"<=20"},"channelImpact":[{"name":"<=24","pct":0-100,"color":"hex"}],"cta":{"title":"<=60","subtitle":"<=110","button":"<=26"},"disclaimer":"<=100"}
+Rules: promotions must have exactly 3 items. channelImpact must have exactly 4 items. Keep every field concise. Raw JSON only.
 User request:\n${userQuery}\n\nRetrieved context:\n${context}\n\nJSON schema hints:
 promotions[{tag,tagColor,title,desc,value,valueLabel}]
 metrics{avgOrderValue,avgOrderValueChange,extraVisitsPerWeek,extraVisitsPerWeekChange,monthlyRevenueLift,monthlyRevenueLiftChange,promoROI,promoROIChange}
@@ -171,7 +194,8 @@ cta{title,subtitle,button}`
     const completion = await client.chat.completions.create({
       model: env.DEEPSEEK_MODEL,
       messages,
-      temperature: 0.3
+      temperature: 0.2,
+      max_tokens: 280
     });
     serverLog("deepseek.request.success");
 
