@@ -8,9 +8,16 @@ This project is ready to deploy on Vercel with DeepSeek called through the OpenA
 - `package.json`: installs the `openai` package on Vercel
 - `vercel.json`: basic Vercel config
 
-## Environment variable
-Set this in Vercel:
-- `DEEPSEEK_API_KEY` = your DeepSeek API key
+## Environment variables
+Set these in Vercel Project Settings → Environment Variables:
+- `DEEPSEEK_API_KEY` (required) = your DeepSeek API key
+- `DEEPSEEK_BASE_URL` (optional, defaults to `https://api.deepseek.com`)
+- `DEEPSEEK_MODEL` (optional, defaults to `deepseek-chat`)
+- `PINECONE_INDEX_HOST` (optional but recommended for retrieval context)
+- `PINECONE_API_KEY` (optional but recommended for retrieval context)
+- `PINECONE_NAMESPACE` (optional; if missing, code falls back to `PINECONE_INDEX` then `default`)
+
+> Note: `base_url` (lowercase) is now accepted as a fallback for compatibility, but standardize on `DEEPSEEK_BASE_URL`.
 
 ## Local test
 ```bash
